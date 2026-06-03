@@ -933,64 +933,60 @@ if uploaded_file is not None:
                 st.info("No marketplace data available")
             st.markdown("</div>", unsafe_allow_html=True)
 
-  
- 
+            # ── CHART 4: Month-Year (only existing months, no zero bars) ───────
+            st.markdown("<div class='chart-container'>", unsafe_allow_html=True)
+            st.markdown(
+                "<div class='chart-title'>&#9672; MONTH-YEAR WISE QTY DISTRIBUTION</div>",
+                unsafe_allow_html=True
+            )
 
-            # ── CHART 4: Month-Year ────────────────────────────────────────────
-# ── CHART 4: Month-Year ────────────────────────────────────────────
-st.markdown("<div class='chart-container'>", unsafe_allow_html=True)
-st.markdown(
-    "<div class='chart-title'>&#9672; MONTH-YEAR WISE QTY DISTRIBUTION</div>",
-    unsafe_allow_html=True
-)
+            monthly_b = filtered_b[filtered_b['ORDER_DATE'].notna()].copy()
 
-monthly_b = filtered_b[filtered_b['ORDER_DATE'].notna()].copy()
+            if not monthly_b.empty:
+                monthly_b['MONTH_NUM']   = monthly_b['ORDER_DATE'].dt.month
+                monthly_b['YEAR_NUM']    = monthly_b['ORDER_DATE'].dt.year
+                monthly_b['MONTH_LABEL'] = monthly_b['ORDER_DATE'].dt.strftime('%b-%y')
 
-if not monthly_b.empty:
-    monthly_b['MONTH_NUM']   = monthly_b['ORDER_DATE'].dt.month
-    monthly_b['YEAR_NUM']    = monthly_b['ORDER_DATE'].dt.year
-    monthly_b['MONTH_LABEL'] = monthly_b['ORDER_DATE'].dt.strftime('%b-%y')
+                # Aggregate directly – only months that actually exist
+                monthly_agg = (
+                    monthly_b.groupby(['MONTH_NUM', 'YEAR_NUM', 'MONTH_LABEL'])['QTY']
+                    .sum()
+                    .reset_index()
+                    .sort_values(['MONTH_NUM', 'YEAR_NUM'])   # Jan across years, then Feb, ...
+                )
+                ordered_labels = monthly_agg['MONTH_LABEL'].tolist()
 
-    # Aggregate directly – only months that actually exist
-    monthly_agg = (
-        monthly_b.groupby(['MONTH_NUM', 'YEAR_NUM', 'MONTH_LABEL'])['QTY']
-        .sum()
-        .reset_index()
-        .sort_values(['MONTH_NUM', 'YEAR_NUM'])   # Jan across years, then Feb, ...
-    )
-    ordered_labels = monthly_agg['MONTH_LABEL'].tolist()
+                MONTH_COLORS = {
+                    1:  "#D4AF37", 2:  "#F1C40F", 3:  "#E67E22",
+                    4:  "#E9C46A", 5:  "#F4A261", 6:  "#E76F51",
+                    7:  "#B8860B", 8:  "#DAA520", 9:  "#CD853F",
+                    10: "#D2691E", 11: "#FFD700", 12: "#FFA500",
+                }
+                bar_colors = [MONTH_COLORS.get(m, "#D4AF37") for m in monthly_agg['MONTH_NUM']]
 
-    MONTH_COLORS = {
-        1:  "#D4AF37", 2:  "#F1C40F", 3:  "#E67E22",
-        4:  "#E9C46A", 5:  "#F4A261", 6:  "#E76F51",
-        7:  "#B8860B", 8:  "#DAA520", 9:  "#CD853F",
-        10: "#D2691E", 11: "#FFD700", 12: "#FFA500",
-    }
-    bar_colors = [MONTH_COLORS.get(m, "#D4AF37") for m in monthly_agg['MONTH_NUM']]
-
-    fig_mo = go.Figure(go.Bar(
-        x=monthly_agg['MONTH_LABEL'],
-        y=monthly_agg['QTY'],
-        text=monthly_agg['QTY'].apply(lambda v: f"{v:,.0f}"),
-        marker=dict(
-            color=bar_colors,
-            line=dict(color='rgba(255,255,255,0.06)', width=1),
-            cornerradius=5,
-        ),
-    ))
-    fig_mo.update_layout(title="Sales by Month (only existing months)")
-    fig_mo = _dark_layout(
-        fig_mo, "Month-Year", "Quantity Sold",
-        extra_xaxis={
-            'categoryorder': 'array',
-            'categoryarray': ordered_labels,
-        },
-        height=540
-    )
-    st.plotly_chart(fig_mo, use_container_width=True)
-else:
-    st.info("No order date data available")
-st.markdown("</div>", unsafe_allow_html=True)
+                fig_mo = go.Figure(go.Bar(
+                    x=monthly_agg['MONTH_LABEL'],
+                    y=monthly_agg['QTY'],
+                    text=monthly_agg['QTY'].apply(lambda v: f"{v:,.0f}"),
+                    marker=dict(
+                        color=bar_colors,
+                        line=dict(color='rgba(255,255,255,0.06)', width=1),
+                        cornerradius=5,
+                    ),
+                ))
+                fig_mo.update_layout(title="Sales by Month (only existing months)")
+                fig_mo = _dark_layout(
+                    fig_mo, "Month-Year", "Quantity Sold",
+                    extra_xaxis={
+                        'categoryorder': 'array',
+                        'categoryarray': ordered_labels,
+                    },
+                    height=540
+                )
+                st.plotly_chart(fig_mo, use_container_width=True)
+            else:
+                st.info("No order date data available")
+            st.markdown("</div>", unsafe_allow_html=True)
 
             # ── Raw data expander ──────────────────────────────────────────────
             with st.expander("View Raw Data"):
