@@ -501,7 +501,7 @@ def render_gold_table(df, title, height=420):
 st.markdown("""
 <div class="report-title">
     &#9672; &nbsp; India Sales Report &nbsp; &#9672;
-    <div class="report-subtitle">Comprehensive Sales Analytics Dashboard &middot; Feb 2026</div>
+    <div class="report-subtitle">Comprehensive Sales Analytics Dashboard &middot; Apr 2026</div>
 </div>
 """, unsafe_allow_html=True)
 
@@ -666,7 +666,7 @@ if uploaded_file is not None:
         total_balance     = sheet_a_all['BALANCE'].sum()
         total_damage      = sheet_a_all['DAMAGE_PRODUCTS'].sum()
         sales_pct         = (total_qty_sold / total_initial_qty * 100) if total_initial_qty > 0 else 0
-        return_pct        = 19.22
+        return_pct        = 40
 
         st.success(f"Data loaded successfully! {len(merged_df):,} records processed")
         st.markdown("<hr style='border:none;border-top:1px solid rgba(212,175,55,0.15);margin:14px 0;'>",
@@ -794,7 +794,7 @@ if uploaded_file is not None:
                 (col2, "💰", "Total Qty Sold",         f"{f_sold:,.0f}"),
                 (col3, "⚖️",  "Balance Qty",           f"{f_bal:,.0f}"),
                 (col4, "🛠️", "Damage Qty",             f"{f_damage:,.0f}"),
-                (col5, "🔄", "Return % Jan–Feb 2026",  f"{return_pct:.1f}%"),
+                (col5, "🔄", "Return % Jan– Apr 2026",  f"{return_pct:.1f}%"),
                 (col6, "📈", "Sales %",                f"{f_spct:.1f}%"),
             ]
             for col, icon, label, value in kpis:
@@ -992,7 +992,7 @@ if uploaded_file is not None:
                         cornerradius=5,
                     ),
                 ))
-                fig_mo.update_layout(title="Sales by Month (grouped by month, then year)")
+                fig_mo.update_layout(title="Sales by Month (grouped by month, then year) Till Apr 2026")
                 fig_mo = _dark_layout(
                     fig_mo, "Month-Year", "Quantity Sold",
                     extra_xaxis={
