@@ -1,4 +1,3 @@
-
 import streamlit as st
 import streamlit.components.v1 as components
 import pandas as pd
@@ -246,6 +245,10 @@ st.markdown("""
         border-bottom: 2px solid rgba(212,175,55,0.6);
         border-right: 1px solid rgba(212,175,55,0.10);
         white-space: nowrap;
+        /* ── Sticky header for scrolling ── */
+        position: sticky;
+        top: 0;
+        z-index: 2;
     }
     .table-scroll th:last-child { border-right: none; }
 
@@ -281,7 +284,8 @@ st.markdown("""
     /* ── Sidebar ── */
     [data-testid="stSidebar"] {
         background: linear-gradient(180deg, #0C0C0C 0%, #0A0A0A 100%) !important;
-        border-right: 1px solid var(--border-dark) !important;
+        /* ── Removed vertical white/gold line ── */
+        border-right: none !important;
     }
     [data-testid="stSidebar"] * { color: var(--sidebar-text) !important; }
     [data-testid="stSidebar"] h3 {
