@@ -242,17 +242,14 @@ st.markdown("""
         text-transform: uppercase;
         padding: 10px 12px;
         text-align: left !important;
-        border-bottom: 2px solid rgba(212,175,55,0.6);
-        /* ── Removed vertical separators in header ── */
-        border-right: none !important;
         white-space: nowrap;
+        /* ── No borders on header ── */
+        border: none !important;
         /* ── Sticky header for scrolling ── */
         position: sticky;
         top: 0;
         z-index: 2;
     }
-    .table-scroll th:last-child { border-right: none; }
-
     /* First column left-aligned, rest centered + gold */
     .table-scroll th:not(:first-child) { text-align: center !important; }
 
@@ -285,7 +282,6 @@ st.markdown("""
     /* ── Sidebar ── */
     [data-testid="stSidebar"] {
         background: linear-gradient(180deg, #0C0C0C 0%, #0A0A0A 100%) !important;
-        /* ── Removed vertical white/gold line ── */
         border-right: none !important;
     }
     /* ── Ensure no stray vertical line appears ── */
