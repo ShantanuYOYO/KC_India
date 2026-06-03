@@ -243,7 +243,8 @@ st.markdown("""
         padding: 10px 12px;
         text-align: left !important;
         border-bottom: 2px solid rgba(212,175,55,0.6);
-        border-right: 1px solid rgba(212,175,55,0.10);
+        /* ── Removed vertical separators in header ── */
+        border-right: none !important;
         white-space: nowrap;
         /* ── Sticky header for scrolling ── */
         position: sticky;
@@ -287,6 +288,17 @@ st.markdown("""
         /* ── Removed vertical white/gold line ── */
         border-right: none !important;
     }
+    /* ── Ensure no stray vertical line appears ── */
+    [data-testid="stAppViewContainer"] {
+        border-right: none !important;
+    }
+    [data-testid="stMain"] {
+        border-right: none !important;
+    }
+    .block-container {
+        border-right: none !important;
+    }
+
     [data-testid="stSidebar"] * { color: var(--sidebar-text) !important; }
     [data-testid="stSidebar"] h3 {
         color: var(--sidebar-accent) !important;
@@ -938,16 +950,32 @@ if uploaded_file is not None:
             monthly_b = filtered_b[filtered_b['ORDER_DATE'].notna()].copy()
 
             if not monthly_b.empty:
-                monthly_b['MONTH_NUM']   = monthly_b['ORDER_DATE'].dt.month
-                monthly_b['YEAR_NUM']    = monthly_b['ORDER_DATE'].dt.year
-                monthly_b['MONTH_LABEL'] = monthly_b['ORDER_DATE'].dt.strftime('%b-%y')
+                # Extract month numbers and years
+                monthly_b['MONTH_NUM'] = monthly_b['ORDER_DATE'].dt.month
+                monthly_b['YEAR_NUM'] = monthly_b['ORDER_DATE'].dt.year
 
-                monthly_agg = (
-                    monthly_b.groupby(['MONTH_NUM', 'YEAR_NUM', 'MONTH_LABEL'])['QTY']
-                    .sum()
-                    .reset_index()
-                    .sort_values(['YEAR_NUM', 'MONTH_NUM'])
-                )
+                # Get all months that appear in the data
+                present_months = sorted(monthly_b['MONTH_NUM'].unique())
+                min_year = int(monthly_b['YEAR_NUM'].min())
+                max_year = int(monthly_b['YEAR_NUM'].max())
+
+                # Create a complete grid: every month that appears × every year from min to max
+                base_rows = []
+                for m in present_months:
+                    for y in range(min_year, max_year + 1):
+                        label = pd.Timestamp(year=y, month=m, day=1).strftime('%b-%y')
+                        base_rows.append({'MONTH_NUM': m, 'YEAR_NUM': y, 'MONTH_LABEL': label})
+                base_df = pd.DataFrame(base_rows)
+
+                # Aggregate actual sales
+                agg = monthly_b.groupby(['MONTH_NUM', 'YEAR_NUM'])['QTY'].sum().reset_index()
+
+                # Merge to get all combinations, fill missing with 0
+                monthly_agg = base_df.merge(agg, on=['MONTH_NUM', 'YEAR_NUM'], how='left')
+                monthly_agg['QTY'] = monthly_agg['QTY'].fillna(0).astype(int)
+
+                # Sort: first by month number, then by year
+                monthly_agg.sort_values(['MONTH_NUM', 'YEAR_NUM'], inplace=True)
                 ordered_labels = monthly_agg['MONTH_LABEL'].tolist()
 
                 MONTH_COLORS = {
@@ -968,7 +996,7 @@ if uploaded_file is not None:
                         cornerradius=5,
                     ),
                 ))
-                fig_mo.update_layout(title="Sales by Month-Year")
+                fig_mo.update_layout(title="Sales by Month (grouped by month, then year)")
                 fig_mo = _dark_layout(
                     fig_mo, "Month-Year", "Quantity Sold",
                     extra_xaxis={
