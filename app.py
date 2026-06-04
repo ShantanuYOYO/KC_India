@@ -198,7 +198,7 @@ st.markdown("""
     }
 
     /* ══════════════════════════════════════════════════════════════════
-       ── Gold-theme HTML tables (Brand Sales Dashboard style) ──
+       ── Gold‑theme HTML tables (Brand Sales Dashboard style) ──
        ══════════════════════════════════════════════════════════════════ */
     .card-title {
         background: #1C1C1C;
@@ -243,14 +243,11 @@ st.markdown("""
         padding: 10px 12px;
         text-align: left !important;
         white-space: nowrap;
-        /* ── No borders on header ── */
         border: none !important;
-        /* ── Sticky header for scrolling ── */
         position: sticky;
         top: 0;
         z-index: 2;
     }
-    /* First column left-aligned, rest centered + gold */
     .table-scroll th:not(:first-child) { text-align: center !important; }
 
     .table-scroll td {
@@ -265,7 +262,6 @@ st.markdown("""
     }
     .table-scroll td:last-child { border-right: none; }
 
-    /* Numeric columns (2nd onwards) — gold + centered */
     .table-scroll td:not(:first-child) {
         text-align: center;
         font-weight: 900;
@@ -284,16 +280,9 @@ st.markdown("""
         background: linear-gradient(180deg, #0C0C0C 0%, #0A0A0A 100%) !important;
         border-right: none !important;
     }
-    /* ── Ensure no stray vertical line appears ── */
-    [data-testid="stAppViewContainer"] {
-        border-right: none !important;
-    }
-    [data-testid="stMain"] {
-        border-right: none !important;
-    }
-    .block-container {
-        border-right: none !important;
-    }
+    [data-testid="stAppViewContainer"] { border-right: none !important; }
+    [data-testid="stMain"]            { border-right: none !important; }
+    .block-container                  { border-right: none !important; }
 
     [data-testid="stSidebar"] * { color: var(--sidebar-text) !important; }
     [data-testid="stSidebar"] h3 {
@@ -689,36 +678,52 @@ if uploaded_file is not None:
             selected_month_years = st.multiselect("Month-Year", ['All'] + month_years, default='All')
             st.markdown("---")
 
-            # Apply Sheet A filters to get valid COLAB set
-            filtered_colabs = sheet_a_unique.copy()
+            # ── Cross‑filter logic: intersection of A and B COLABs ───────────
+            # 1. COLABs passing all Sheet A filters
+            filtered_a = sheet_a_unique.copy()
             if 'All' not in selected_brands        and selected_brands:
-                filtered_colabs = filtered_colabs[filtered_colabs['BRAND'].isin(selected_brands)]
+                filtered_a = filtered_a[filtered_a['BRAND'].isin(selected_brands)]
             if 'All' not in selected_seasons       and selected_seasons:
-                filtered_colabs = filtered_colabs[filtered_colabs['SEASON'].isin(selected_seasons)]
+                filtered_a = filtered_a[filtered_a['SEASON'].isin(selected_seasons)]
             if 'All' not in selected_subcategories and selected_subcategories:
-                filtered_colabs = filtered_colabs[filtered_colabs['SUBCATEGORY'].isin(selected_subcategories)]
+                filtered_a = filtered_a[filtered_a['SUBCATEGORY'].isin(selected_subcategories)]
             if 'All' not in selected_colors        and selected_colors:
-                filtered_colabs = filtered_colabs[filtered_colabs['COLOR'].isin(selected_colors)]
+                filtered_a = filtered_a[filtered_a['COLOR'].isin(selected_colors)]
             if 'All' not in selected_colabs        and selected_colabs:
-                filtered_colabs = filtered_colabs[filtered_colabs['COLAB'].isin(selected_colabs)]
+                filtered_a = filtered_a[filtered_a['COLAB'].isin(selected_colabs)]
 
-            valid_colabs = set(filtered_colabs['COLAB'].unique())
+            valid_a_colabs = set(filtered_a['COLAB'].unique())
 
-            # Apply Sheet B filters (only restrict orders, never remove COLABs)
-            filtered_b = sheet_b_raw[sheet_b_raw['COLAB'].isin(valid_colabs)].copy()
-            if 'All' not in selected_websites    and selected_websites:
-                filtered_b = filtered_b[filtered_b['WEBSITE'].isin(selected_websites)]
+            # 2. COLABs that appear in Sheet B after Website & Month‑Year filters
+            temp_b = sheet_b_raw[sheet_b_raw['COLAB'].isin(valid_a_colabs)].copy()
+            if 'All' not in selected_websites and selected_websites:
+                temp_b = temp_b[temp_b['WEBSITE'].isin(selected_websites)]
             if 'All' not in selected_month_years and selected_month_years:
-                filtered_b = filtered_b[filtered_b['MONTH_YEAR'].isin(selected_month_years)]
+                temp_b = temp_b[temp_b['MONTH_YEAR'].isin(selected_month_years)]
 
-            # DATASET statistics (rule #6)
+            valid_b_colabs = set(temp_b['COLAB'].unique())
+
+            # Intersection = visible COLABs
+            valid_colabs = valid_a_colabs.intersection(valid_b_colabs)
+
+            # 3. Final filtered datasets for KPIs, tables, charts
+            filtered_sheet_a = sheet_a_unique[sheet_a_unique['COLAB'].isin(valid_colabs)].copy()
+
+            # Final orders – all B filters applied (Website, Month‑Year)
+            filtered_b_final = sheet_b_raw[sheet_b_raw['COLAB'].isin(valid_colabs)].copy()
+            if 'All' not in selected_websites and selected_websites:
+                filtered_b_final = filtered_b_final[filtered_b_final['WEBSITE'].isin(selected_websites)]
+            if 'All' not in selected_month_years and selected_month_years:
+                filtered_b_final = filtered_b_final[filtered_b_final['MONTH_YEAR'].isin(selected_month_years)]
+
+            # ── Sidebar DATASET pills (cross‑filter aware) ──────────────────
             st.markdown("### DATASET")
             st.markdown(f"""
 <div class="stat-pill"><span>COLABs</span><span>{len(valid_colabs):,}</span></div>
-<div class="stat-pill"><span>Seasons</span><span>{filtered_colabs['SEASON'].nunique()}</span></div>
-<div class="stat-pill"><span>Subcategories</span><span>{filtered_colabs['SUBCATEGORY'].nunique()}</span></div>
-<div class="stat-pill"><span>Websites</span><span>{filtered_b['WEBSITE'].nunique()}</span></div>
-<div class="stat-pill"><span>Months</span><span>{filtered_b['MONTH_YEAR'].nunique()}</span></div>
+<div class="stat-pill"><span>Seasons</span><span>{filtered_sheet_a['SEASON'].nunique()}</span></div>
+<div class="stat-pill"><span>Subcategories</span><span>{filtered_sheet_a['SUBCATEGORY'].nunique()}</span></div>
+<div class="stat-pill"><span>Websites</span><span>{filtered_b_final['WEBSITE'].nunique()}</span></div>
+<div class="stat-pill"><span>Months</span><span>{filtered_b_final['MONTH_YEAR'].nunique()}</span></div>
 """, unsafe_allow_html=True)
 
             st.markdown("---")
@@ -729,232 +734,234 @@ if uploaded_file is not None:
                 unsafe_allow_html=True
             )
 
-        # ── Main area ──────────────────────────────────────────────────────────
-        # Apply same filters to the stock dataframe used in KPIs and tables
-        filtered_sheet_a = sheet_a_unique[sheet_a_unique['COLAB'].isin(valid_colabs)]
+        # ── Guard clause ─────────────────────────────────────────────────────
+        if len(valid_colabs) == 0:
+            st.warning("⚠️ No COLABs match the selected filters. Please adjust your selections.")
+            st.stop()
 
-        if len(filtered_sheet_a) == 0:
-            st.warning("No COLABs match the selected Sheet A filters.")
-        else:
-            # ── KPIs ────────────────────────────────────────────────────────────
-            st.markdown('<div class="section-heading">&#9670; Key Performance Indicators</div>',
-                        unsafe_allow_html=True)
+        # ── KPIs (stock from A, orders from B) ─────────────────────────────
+        st.markdown('<div class="section-heading">&#9670; Key Performance Indicators</div>',
+                    unsafe_allow_html=True)
 
-            f_init    = filtered_sheet_a['INITIAL_QTY'].sum()
-            f_bal     = filtered_sheet_a['BALANCE'].sum()
-            f_damage  = filtered_sheet_a['DAMAGE_PRODUCTS'].sum()
-            # Stock-side total sold (used for Sales % only)
-            f_stock_sold = filtered_sheet_a['TOTAL_QTY'].sum()
+        f_init    = filtered_sheet_a['INITIAL_QTY'].sum()
+        f_bal     = filtered_sheet_a['BALANCE'].sum()
+        f_damage  = filtered_sheet_a['DAMAGE_PRODUCTS'].sum()
+        total_qty_sold = filtered_b_final['QTY'].sum()               # from orders
 
-            # Order-side Total Qty Sold (rule #3)
-            total_qty_sold = int(filtered_b['QTY'].sum())
+        f_spct = (total_qty_sold / f_init * 100) if f_init > 0 else 0   # order-based sales %
 
-            # Sales % based on stock-side numbers
-            f_spct = (f_stock_sold / f_init * 100) if f_init > 0 else 0
-
-            col1, col2, col3, col4, col5, col6 = st.columns(6)
-            kpis = [
-                (col1, "📦", "Initial Qty",            f"{f_init:,.0f}"),
-                (col2, "💰", "Total Qty Sold",         f"{total_qty_sold:,.0f}"),  # ← order-based
-                (col3, "⚖️",  "Balance Qty",           f"{f_bal:,.0f}"),
-                (col4, "🛠️", "Damage Qty",             f"{f_damage:,.0f}"),
-                (col5, "🔄", "Return % Jan– Apr 2026",  f"{return_pct:.1f}%"),
-                (col6, "📈", "Sales %",                f"{f_spct:.1f}%"),
-            ]
-            for col, icon, label, value in kpis:
-                with col:
-                    st.markdown(f"""
+        col1, col2, col3, col4, col5, col6 = st.columns(6)
+        kpis = [
+            (col1, "📦", "Initial Qty",            f"{f_init:,.0f}"),
+            (col2, "💰", "Total Qty Sold",         f"{total_qty_sold:,.0f}"),
+            (col3, "⚖️",  "Balance Qty",           f"{f_bal:,.0f}"),
+            (col4, "🛠️", "Damage Qty",             f"{f_damage:,.0f}"),
+            (col5, "🔄", "Return % Jan– Apr 2026",  f"{return_pct:.1f}%"),
+            (col6, "📈", "Sales %",                f"{f_spct:.1f}%"),
+        ]
+        for col, icon, label, value in kpis:
+            with col:
+                st.markdown(f"""
 <div class='metric-card'>
   <div class='metric-icon'>{icon}</div>
   <div class='metric-label'>{label}</div>
   <div class='metric-value'>{value}</div>
 </div>""", unsafe_allow_html=True)
 
-            st.markdown(
-                "<hr style='border:none;border-top:1px solid rgba(212,175,55,0.15);margin:24px 0;'>",
-                unsafe_allow_html=True
+        st.markdown(
+            "<hr style='border:none;border-top:1px solid rgba(212,175,55,0.15);margin:24px 0;'>",
+            unsafe_allow_html=True
+        )
+
+        # ── Distribution tables (cross‑filter left join on COLAB) ──────────
+        st.markdown(
+            '<div class="section-heading">&#9670; Sales Distribution Tables</div>',
+            unsafe_allow_html=True
+        )
+
+        # Aggregate orders per COLAB
+        orders_agg = filtered_b_final.groupby('COLAB')['QTY'].sum().reset_index()
+        orders_agg.rename(columns={'QTY': 'TOTAL_QTY'}, inplace=True)
+
+        # Merge stock (A) with orders (B) – inner join guarantees no missing COLABs
+        merged_for_tables = pd.merge(
+            filtered_sheet_a[['COLAB', 'BRAND', 'SEASON', 'SUBCATEGORY', 'COLOR',
+                              'INITIAL_QTY', 'BALANCE', 'DAMAGE_PRODUCTS']],
+            orders_agg,
+            on='COLAB',
+            how='inner'
+        )
+
+        def analyze_group_crossfilter(group_col, display_name):
+            if group_col not in merged_for_tables.columns:
+                return pd.DataFrame()
+            grouped = merged_for_tables.groupby(group_col, observed=True).agg(
+                INITIAL_QTY=('INITIAL_QTY', 'sum'),
+                TOTAL_QTY=('TOTAL_QTY', 'sum'),
+                BALANCE=('BALANCE', 'sum'),
+                DAMAGE_PRODUCTS=('DAMAGE_PRODUCTS', 'sum')
+            ).reset_index()
+            grouped['SALES_PERCENTAGE'] = np.where(
+                grouped['INITIAL_QTY'] > 0,
+                (grouped['TOTAL_QTY'] / grouped['INITIAL_QTY']) * 100, 0
+            )
+            sort_map = {
+                'Total Qty':   'TOTAL_QTY',
+                'Initial Qty': 'INITIAL_QTY',
+                'Balance':     'BALANCE',
+                'Damage Qty':  'DAMAGE_PRODUCTS',
+                'Sales%':      'SALES_PERCENTAGE',
+            }
+            grouped = grouped.sort_values(
+                sort_map[sort_column], ascending=(sort_order == 'Ascending')
             )
 
-            # ── Helper: group & aggregate → display-ready DataFrame ────────────
-            def analyze_group(group_col, display_name):
-                if group_col not in filtered_sheet_a.columns:
-                    return pd.DataFrame()
+            # Build display‑ready DataFrame
+            display = pd.DataFrame()
+            display[display_name]   = grouped[group_col].astype(str)
+            display['Initial Qty']  = grouped['INITIAL_QTY'].apply(lambda v: f"{int(v):,}")
+            display['Total Qty Sold'] = grouped['TOTAL_QTY'].apply(lambda v: f"{int(v):,}")
+            display['Balance Qty']  = grouped['BALANCE'].apply(lambda v: f"{int(v):,}")
+            display['Damage Qty']   = grouped['DAMAGE_PRODUCTS'].apply(lambda v: f"{int(v):,}")
+            display['Sales %']      = grouped['SALES_PERCENTAGE'].apply(lambda v: f"{v:.1f}%")
+            return display.reset_index(drop=True)
 
-                grouped = filtered_sheet_a.groupby(group_col, observed=True).agg(
-                    INITIAL_QTY=('INITIAL_QTY',         'sum'),
-                    TOTAL_QTY=('TOTAL_QTY',             'sum'),   # stock-side
-                    BALANCE=('BALANCE',                 'sum'),
-                    DAMAGE_PRODUCTS=('DAMAGE_PRODUCTS', 'sum'),
-                ).reset_index()
+        tables_config = [
+            ('BRAND',       'Brand'),
+            ('SEASON',      'Season'),
+            ('SUBCATEGORY', 'Subcategory'),
+            ('COLOR',       'Color'),
+            ('COLAB',       'Colab'),
+        ]
 
-                grouped['SALES_PERCENTAGE'] = np.where(
-                    grouped['INITIAL_QTY'] > 0,
-                    (grouped['TOTAL_QTY'] / grouped['INITIAL_QTY']) * 100, 0
-                )
-                sort_map = {
-                    'Total Qty':   'TOTAL_QTY',
-                    'Initial Qty': 'INITIAL_QTY',
-                    'Balance':     'BALANCE',
-                    'Damage Qty':  'DAMAGE_PRODUCTS',
-                    'Sales%':      'SALES_PERCENTAGE',
-                }
-                grouped = grouped.sort_values(
-                    sort_map[sort_column], ascending=(sort_order == 'Ascending')
-                )
+        for i in range(0, len(tables_config), 2):
+            cols = st.columns(2)
+            for j in range(2):
+                if i + j < len(tables_config):
+                    col_name, display_name = tables_config[i + j]
+                    with cols[j]:
+                        table_data = analyze_group_crossfilter(col_name, display_name)
+                        if not table_data.empty:
+                            render_gold_table(
+                                table_data,
+                                f"&#9672;&nbsp; {display_name} Wise Distribution",
+                                height=420
+                            )
+                        else:
+                            st.info(f"No data for {display_name}")
 
-                # Build display DataFrame with pre-formatted strings
-                display = pd.DataFrame()
-                display[display_name]   = grouped[group_col].astype(str)
-                display['Initial Qty']  = grouped['INITIAL_QTY'].apply(lambda v: f"{int(v):,}")
-                display['Total Qty']    = grouped['TOTAL_QTY'].apply(lambda v: f"{int(v):,}")
-                display['Balance Qty']  = grouped['BALANCE'].apply(lambda v: f"{int(v):,}")
-                display['Damage Qty']   = grouped['DAMAGE_PRODUCTS'].apply(lambda v: f"{int(v):,}")
-                display['Sales %']      = grouped['SALES_PERCENTAGE'].apply(lambda v: f"{v:.1f}%")
-                return display.reset_index(drop=True)
+            st.markdown("<div style='height:10px'></div>", unsafe_allow_html=True)
 
-            # ── Distribution Tables ────────────────────────────────────────────
-            st.markdown(
-                '<div class="section-heading">&#9670; Sales Distribution Tables</div>',
-                unsafe_allow_html=True
-            )
+        st.markdown(
+            "<hr style='border:none;border-top:1px solid rgba(212,175,55,0.15);margin:24px 0;'>",
+            unsafe_allow_html=True
+        )
 
-            tables_config = [
-                ('BRAND',       'Brand'),
-                ('SEASON',      'Season'),
-                ('SUBCATEGORY', 'Subcategory'),
-                ('COLOR',       'Color'),
-                ('COLAB',       'Colab'),
+        # ── Visual Analytics (charts from filtered_b_final) ─────────────────
+        st.markdown(
+            '<div class="section-heading">&#9670; Visual Analytics</div>',
+            unsafe_allow_html=True
+        )
+
+        # ── CHART 1: Marketplace ───────────────────────────────────────────
+        st.markdown("<div class='chart-container'>", unsafe_allow_html=True)
+        st.markdown(
+            "<div class='chart-title'>&#9672; MARKETPLACE WISE QTY SOLD</div>",
+            unsafe_allow_html=True
+        )
+
+        website_data = (
+            filtered_b_final[
+                filtered_b_final['WEBSITE'].notna() &
+                (filtered_b_final['WEBSITE'].str.strip() != '') &
+                (filtered_b_final['WEBSITE'].str.upper() != 'NAN')
             ]
+            .groupby('WEBSITE')['QTY'].sum()
+            .reset_index()
+            .sort_values('QTY', ascending=False)
+        )
 
-            for i in range(0, len(tables_config), 2):
-                cols = st.columns(2)
-                for j in range(2):
-                    if i + j < len(tables_config):
-                        col_name, display_name = tables_config[i + j]
-                        with cols[j]:
-                            table_data = analyze_group(col_name, display_name)
-                            if not table_data.empty:
-                                render_gold_table(
-                                    table_data,
-                                    f"&#9672;&nbsp; {display_name} Wise Distribution",
-                                    height=420
-                                )
-                            else:
-                                st.info(f"No data for {display_name}")
-
-                st.markdown("<div style='height:10px'></div>", unsafe_allow_html=True)
-
-            st.markdown(
-                "<hr style='border:none;border-top:1px solid rgba(212,175,55,0.15);margin:24px 0;'>",
-                unsafe_allow_html=True
+        if not website_data.empty:
+            n = len(website_data)
+            colors_bars = [GOLD_PALETTE[i % len(GOLD_PALETTE)] for i in range(n)]
+            fig_ws = go.Figure(go.Bar(
+                x=website_data['WEBSITE'],
+                y=website_data['QTY'],
+                text=website_data['QTY'].apply(lambda v: f"{v:,.0f}"),
+                marker=dict(
+                    color=colors_bars,
+                    line=dict(color='rgba(255,255,255,0.06)', width=1),
+                    cornerradius=6,
+                ),
+            ))
+            fig_ws.update_layout(title="Sales by Marketplace till Apr 2026")
+            fig_ws = _dark_layout(
+                fig_ws, "Marketplace", "Quantity Sold",
+                extra_xaxis={'categoryorder': 'array',
+                             'categoryarray': website_data['WEBSITE'].tolist()}
             )
+            st.plotly_chart(fig_ws, use_container_width=True)
+        else:
+            st.info("No marketplace order data for the selected filters")
+        st.markdown("</div>", unsafe_allow_html=True)
 
-            # ── Visual Analytics ───────────────────────────────────────────────
-            st.markdown(
-                '<div class="section-heading">&#9670; Visual Analytics</div>',
-                unsafe_allow_html=True
-            )
+        # ── CHART 2: Month-Year (only existing months) ─────────────────────
+        st.markdown("<div class='chart-container'>", unsafe_allow_html=True)
+        st.markdown(
+            "<div class='chart-title'>&#9672; MONTH-YEAR WISE QTY DISTRIBUTION</div>",
+            unsafe_allow_html=True
+        )
 
-            # ── CHART 1: Marketplace ───────────────────────────────────────────
-            st.markdown("<div class='chart-container'>", unsafe_allow_html=True)
-            st.markdown(
-                "<div class='chart-title'>&#9672; MARKETPLACE WISE QTY SOLD</div>",
-                unsafe_allow_html=True
-            )
+        monthly_b = filtered_b_final[filtered_b_final['ORDER_DATE'].notna()].copy()
 
-            website_data = (
-                filtered_b[
-                    filtered_b['WEBSITE'].notna() &
-                    (filtered_b['WEBSITE'].str.strip() != '') &
-                    (filtered_b['WEBSITE'].str.upper() != 'NAN')
-                ]
-                .groupby('WEBSITE')['QTY'].sum()
+        if not monthly_b.empty:
+            monthly_b['MONTH_NUM']   = monthly_b['ORDER_DATE'].dt.month
+            monthly_b['YEAR_NUM']    = monthly_b['ORDER_DATE'].dt.year
+            monthly_b['MONTH_LABEL'] = monthly_b['ORDER_DATE'].dt.strftime('%b-%y')
+
+            monthly_agg = (
+                monthly_b.groupby(['MONTH_NUM', 'YEAR_NUM', 'MONTH_LABEL'])['QTY']
+                .sum()
                 .reset_index()
-                .sort_values('QTY', ascending=False)
+                .sort_values(['MONTH_NUM', 'YEAR_NUM'])
             )
+            ordered_labels = monthly_agg['MONTH_LABEL'].tolist()
 
-            if not website_data.empty:
-                n = len(website_data)
-                colors_bars = [GOLD_PALETTE[i % len(GOLD_PALETTE)] for i in range(n)]
-                fig_ws = go.Figure(go.Bar(
-                    x=website_data['WEBSITE'],
-                    y=website_data['QTY'],
-                    text=website_data['QTY'].apply(lambda v: f"{v:,.0f}"),
-                    marker=dict(
-                        color=colors_bars,
-                        line=dict(color='rgba(255,255,255,0.06)', width=1),
-                        cornerradius=6,
-                    ),
-                ))
-                fig_ws.update_layout(title="Sales by Marketplace till Apr 2026")
-                fig_ws = _dark_layout(
-                    fig_ws, "Marketplace", "Quantity Sold",
-                    extra_xaxis={'categoryorder': 'array',
-                                 'categoryarray': website_data['WEBSITE'].tolist()}
-                )
-                st.plotly_chart(fig_ws, use_container_width=True)
-            else:
-                st.info("No marketplace order data for the selected filters")
-            st.markdown("</div>", unsafe_allow_html=True)
+            MONTH_COLORS = {
+                1:  "#D4AF37", 2:  "#F1C40F", 3:  "#E67E22",
+                4:  "#E9C46A", 5:  "#F4A261", 6:  "#E76F51",
+                7:  "#B8860B", 8:  "#DAA520", 9:  "#CD853F",
+                10: "#D2691E", 11: "#FFD700", 12: "#FFA500",
+            }
+            bar_colors = [MONTH_COLORS.get(m, "#D4AF37") for m in monthly_agg['MONTH_NUM']]
 
-            # ── CHART 4: Month-Year (only existing months, no zero bars) ───────
-            st.markdown("<div class='chart-container'>", unsafe_allow_html=True)
-            st.markdown(
-                "<div class='chart-title'>&#9672; MONTH-YEAR WISE QTY DISTRIBUTION</div>",
-                unsafe_allow_html=True
+            fig_mo = go.Figure(go.Bar(
+                x=monthly_agg['MONTH_LABEL'],
+                y=monthly_agg['QTY'],
+                text=monthly_agg['QTY'].apply(lambda v: f"{v:,.0f}"),
+                marker=dict(
+                    color=bar_colors,
+                    line=dict(color='rgba(255,255,255,0.06)', width=1),
+                    cornerradius=5,
+                ),
+            ))
+            fig_mo.update_layout(title="Sales by Month (only existing months)")
+            fig_mo = _dark_layout(
+                fig_mo, "Month-Year", "Quantity Sold",
+                extra_xaxis={
+                    'categoryorder': 'array',
+                    'categoryarray': ordered_labels,
+                },
+                height=540
             )
+            st.plotly_chart(fig_mo, use_container_width=True)
+        else:
+            st.info("No marketplace order data for the selected filters")
+        st.markdown("</div>", unsafe_allow_html=True)
 
-            monthly_b = filtered_b[filtered_b['ORDER_DATE'].notna()].copy()
-
-            if not monthly_b.empty:
-                monthly_b['MONTH_NUM']   = monthly_b['ORDER_DATE'].dt.month
-                monthly_b['YEAR_NUM']    = monthly_b['ORDER_DATE'].dt.year
-                monthly_b['MONTH_LABEL'] = monthly_b['ORDER_DATE'].dt.strftime('%b-%y')
-
-                # Aggregate directly – only months that actually exist
-                monthly_agg = (
-                    monthly_b.groupby(['MONTH_NUM', 'YEAR_NUM', 'MONTH_LABEL'])['QTY']
-                    .sum()
-                    .reset_index()
-                    .sort_values(['MONTH_NUM', 'YEAR_NUM'])
-                )
-                ordered_labels = monthly_agg['MONTH_LABEL'].tolist()
-
-                MONTH_COLORS = {
-                    1:  "#D4AF37", 2:  "#F1C40F", 3:  "#E67E22",
-                    4:  "#E9C46A", 5:  "#F4A261", 6:  "#E76F51",
-                    7:  "#B8860B", 8:  "#DAA520", 9:  "#CD853F",
-                    10: "#D2691E", 11: "#FFD700", 12: "#FFA500",
-                }
-                bar_colors = [MONTH_COLORS.get(m, "#D4AF37") for m in monthly_agg['MONTH_NUM']]
-
-                fig_mo = go.Figure(go.Bar(
-                    x=monthly_agg['MONTH_LABEL'],
-                    y=monthly_agg['QTY'],
-                    text=monthly_agg['QTY'].apply(lambda v: f"{v:,.0f}"),
-                    marker=dict(
-                        color=bar_colors,
-                        line=dict(color='rgba(255,255,255,0.06)', width=1),
-                        cornerradius=5,
-                    ),
-                ))
-                fig_mo.update_layout(title="Sales by Month (only existing months)")
-                fig_mo = _dark_layout(
-                    fig_mo, "Month-Year", "Quantity Sold",
-                    extra_xaxis={
-                        'categoryorder': 'array',
-                        'categoryarray': ordered_labels,
-                    },
-                    height=540
-                )
-                st.plotly_chart(fig_mo, use_container_width=True)
-            else:
-                st.info("No marketplace order data for the selected filters")
-            st.markdown("</div>", unsafe_allow_html=True)
-
-            # ── Raw data expander ──────────────────────────────────────────────
-            with st.expander("View Raw Data"):
-                st.dataframe(filtered_b, use_container_width=True)
+        # ── Raw data expander ──────────────────────────────────────────────
+        with st.expander("View Filtered Order Data"):
+            st.dataframe(filtered_b_final, use_container_width=True)
 
     except Exception as e:
         st.error(f"Error: {str(e)}")
