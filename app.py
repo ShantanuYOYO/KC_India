@@ -480,8 +480,7 @@ def _dark_layout(fig, xaxis_title, yaxis_title, extra_xaxis=None, height=500):
 
 # ── Gold-theme HTML table renderer ────────────────────────────────────────────
 def render_gold_table(df, title, height=420):
-    """Render a DataFrame as a gold-themed HTML table — Brand Sales Dashboard style.
-    First column stays white/left-aligned; all other columns are gold/centered."""
+    """Render a DataFrame as a gold-themed HTML table — first column white, rest gold."""
     headers = "".join(f"<th>{col}</th>" for col in df.columns)
     rows_html = ""
     for _, row in df.iterrows():
@@ -531,6 +530,7 @@ def parse_india_date(val):
 
 @st.cache_data(ttl=3600)
 def load_and_process_data(uploaded_file):
+    """Load Sheet A (stock) and Sheet B (orders), returning unique stock COLABs and raw orders."""
     try:
         sheet_a = pd.read_excel(uploaded_file, sheet_name='A')
         sheet_b = pd.read_excel(uploaded_file, sheet_name='B')
@@ -588,8 +588,8 @@ def load_and_process_data(uploaded_file):
             'BALANCE':         pd.to_numeric(sheet_a[balance_col],     errors='coerce').fillna(0),
             'DAMAGE_PRODUCTS': pd.to_numeric(sheet_a[damage_col],      errors='coerce').fillna(0),
         })
-
-        sheet_a_for_merge = sheet_a_clean.drop_duplicates(subset=['COLAB'], keep='first')
+        # Unique stock data per COLAB
+        sheet_a_unique = sheet_a_clean.drop_duplicates(subset=['COLAB'], keep='first')
 
         # ── Sheet B columns ────────────────────────────────────────────────────
         website_col    = find_column(sheet_b, ['WEBSITE', 'Website'])
@@ -625,29 +625,8 @@ def load_and_process_data(uploaded_file):
         sheet_b_raw['YEAR_NUM']   = sheet_b_raw['ORDER_DATE'].dt.year
         sheet_b_raw['MONTH_YEAR'] = sheet_b_raw['ORDER_DATE'].dt.strftime('%b-%y')
 
-        sheet_b_agg = sheet_b_raw.groupby('COLAB').agg(
-            WEBSITE=('WEBSITE', 'first'),
-            QTY=('QTY', 'sum'),
-            ORDER_DATE=('ORDER_DATE', 'first')
-        ).reset_index()
-
-        merged_df = pd.merge(
-            sheet_a_for_merge, sheet_b_agg,
-            on='COLAB', how='right', suffixes=('_a', '_b')
-        )
-
-        for col in ['INITIAL_QTY', 'TOTAL_QTY', 'BALANCE', 'DAMAGE_PRODUCTS', 'QTY']:
-            merged_df[col] = merged_df[col].fillna(0)
-
-        merged_df['SALES_PERCENTAGE'] = np.where(
-            merged_df['INITIAL_QTY'] > 0,
-            (merged_df['TOTAL_QTY'] / merged_df['INITIAL_QTY']) * 100, 0
-        )
-        merged_df['RETURN_PERCENTAGE'] = 0.0
-        merged_df['MONTH_YEAR'] = merged_df['ORDER_DATE'].dt.strftime('%b-%y')
-        merged_df['YEAR_MONTH'] = merged_df['ORDER_DATE'].dt.to_period('M')
-
-        return merged_df, sheet_a_clean, sheet_b_raw
+        # No merged_df – return clean stock and raw orders
+        return sheet_a_unique, sheet_b_raw
 
     except Exception as e:
         st.error(f"Error loading data: {str(e)}")
@@ -659,16 +638,11 @@ def load_and_process_data(uploaded_file):
 if uploaded_file is not None:
     try:
         with st.spinner('Loading and processing data...'):
-            merged_df, sheet_a_all, sheet_b_raw = load_and_process_data(uploaded_file)
+            sheet_a_unique, sheet_b_raw = load_and_process_data(uploaded_file)
 
-        total_initial_qty = sheet_a_all['INITIAL_QTY'].sum()
-        total_qty_sold    = sheet_a_all['TOTAL_QTY'].sum()
-        total_balance     = sheet_a_all['BALANCE'].sum()
-        total_damage      = sheet_a_all['DAMAGE_PRODUCTS'].sum()
-        sales_pct         = (total_qty_sold / total_initial_qty * 100) if total_initial_qty > 0 else 0
-        return_pct        = 40
+        return_pct = 40   # static return percentage
 
-        st.success(f"Data loaded successfully! {len(merged_df):,} records processed")
+        st.success(f"Data loaded successfully! {len(sheet_a_unique):,} stock records processed")
         st.markdown("<hr style='border:none;border-top:1px solid rgba(212,175,55,0.15);margin:14px 0;'>",
                     unsafe_allow_html=True)
 
@@ -685,11 +659,11 @@ if uploaded_file is not None:
             sort_order = st.radio("Order", ['Descending', 'Ascending'], horizontal=True)
             st.markdown("---")
 
-            brands        = sorted(sheet_a_all['BRAND'].dropna().unique())
-            seasons       = sorted(sheet_a_all['SEASON'].dropna().unique())
-            subcategories = sorted(sheet_a_all['SUBCATEGORY'].dropna().unique())
-            colors        = sorted(sheet_a_all['COLOR'].dropna().unique())
-            colabs        = sorted(sheet_a_all['COLAB'].dropna().unique())
+            brands        = sorted(sheet_a_unique['BRAND'].dropna().unique())
+            seasons       = sorted(sheet_a_unique['SEASON'].dropna().unique())
+            subcategories = sorted(sheet_a_unique['SUBCATEGORY'].dropna().unique())
+            colors        = sorted(sheet_a_unique['COLOR'].dropna().unique())
+            colabs        = sorted(sheet_a_unique['COLAB'].dropna().unique())
             websites      = sorted(sheet_b_raw['WEBSITE'].dropna().unique())
 
             my_df = sheet_b_raw[sheet_b_raw['ORDER_DATE'].notna()].copy()
@@ -715,31 +689,36 @@ if uploaded_file is not None:
             selected_month_years = st.multiselect("Month-Year", ['All'] + month_years, default='All')
             st.markdown("---")
 
-            # Filter summary pills (sidebar preview counts)
-            st.markdown("### DATASET")
-            _fa = sheet_a_all.copy()
+            # Apply Sheet A filters to get valid COLAB set
+            filtered_colabs = sheet_a_unique.copy()
             if 'All' not in selected_brands        and selected_brands:
-                _fa = _fa[_fa['BRAND'].isin(selected_brands)]
+                filtered_colabs = filtered_colabs[filtered_colabs['BRAND'].isin(selected_brands)]
             if 'All' not in selected_seasons       and selected_seasons:
-                _fa = _fa[_fa['SEASON'].isin(selected_seasons)]
+                filtered_colabs = filtered_colabs[filtered_colabs['SEASON'].isin(selected_seasons)]
             if 'All' not in selected_subcategories and selected_subcategories:
-                _fa = _fa[_fa['SUBCATEGORY'].isin(selected_subcategories)]
+                filtered_colabs = filtered_colabs[filtered_colabs['SUBCATEGORY'].isin(selected_subcategories)]
             if 'All' not in selected_colors        and selected_colors:
-                _fa = _fa[_fa['COLOR'].isin(selected_colors)]
+                filtered_colabs = filtered_colabs[filtered_colabs['COLOR'].isin(selected_colors)]
             if 'All' not in selected_colabs        and selected_colabs:
-                _fa = _fa[_fa['COLAB'].isin(selected_colabs)]
-            _vc = set(_fa['COLAB'].unique())
-            _fb = sheet_b_raw[sheet_b_raw['COLAB'].isin(_vc)].copy()
-            if 'All' not in selected_websites    and selected_websites:
-                _fb = _fb[_fb['WEBSITE'].isin(selected_websites)]
-            if 'All' not in selected_month_years and selected_month_years:
-                _fb = _fb[_fb['MONTH_YEAR'].isin(selected_month_years)]
+                filtered_colabs = filtered_colabs[filtered_colabs['COLAB'].isin(selected_colabs)]
 
+            valid_colabs = set(filtered_colabs['COLAB'].unique())
+
+            # Apply Sheet B filters (only restrict orders, never remove COLABs)
+            filtered_b = sheet_b_raw[sheet_b_raw['COLAB'].isin(valid_colabs)].copy()
+            if 'All' not in selected_websites    and selected_websites:
+                filtered_b = filtered_b[filtered_b['WEBSITE'].isin(selected_websites)]
+            if 'All' not in selected_month_years and selected_month_years:
+                filtered_b = filtered_b[filtered_b['MONTH_YEAR'].isin(selected_month_years)]
+
+            # DATASET statistics (rule #6)
+            st.markdown("### DATASET")
             st.markdown(f"""
-<div class="stat-pill"><span>COLABs</span><span>{len(_vc):,}</span></div>
-<div class="stat-pill"><span>Brands</span><span>{_fa['BRAND'].nunique()}</span></div>
-<div class="stat-pill"><span>Websites</span><span>{_fb['WEBSITE'].nunique()}</span></div>
-<div class="stat-pill"><span>Months</span><span>{_fb['MONTH_YEAR'].nunique()}</span></div>
+<div class="stat-pill"><span>COLABs</span><span>{len(valid_colabs):,}</span></div>
+<div class="stat-pill"><span>Seasons</span><span>{filtered_colabs['SEASON'].nunique()}</span></div>
+<div class="stat-pill"><span>Subcategories</span><span>{filtered_colabs['SUBCATEGORY'].nunique()}</span></div>
+<div class="stat-pill"><span>Websites</span><span>{filtered_b['WEBSITE'].nunique()}</span></div>
+<div class="stat-pill"><span>Months</span><span>{filtered_b['MONTH_YEAR'].nunique()}</span></div>
 """, unsafe_allow_html=True)
 
             st.markdown("---")
@@ -750,48 +729,33 @@ if uploaded_file is not None:
                 unsafe_allow_html=True
             )
 
-        # ── Apply filters (main area) ──────────────────────────────────────────
-        filtered_sheet_a = sheet_a_all.copy()
-        if 'All' not in selected_brands        and selected_brands:
-            filtered_sheet_a = filtered_sheet_a[filtered_sheet_a['BRAND'].isin(selected_brands)]
-        if 'All' not in selected_seasons       and selected_seasons:
-            filtered_sheet_a = filtered_sheet_a[filtered_sheet_a['SEASON'].isin(selected_seasons)]
-        if 'All' not in selected_subcategories and selected_subcategories:
-            filtered_sheet_a = filtered_sheet_a[filtered_sheet_a['SUBCATEGORY'].isin(selected_subcategories)]
-        if 'All' not in selected_colors        and selected_colors:
-            filtered_sheet_a = filtered_sheet_a[filtered_sheet_a['COLOR'].isin(selected_colors)]
-        if 'All' not in selected_colabs        and selected_colabs:
-            filtered_sheet_a = filtered_sheet_a[filtered_sheet_a['COLAB'].isin(selected_colabs)]
-
-        valid_colabs = set(filtered_sheet_a['COLAB'].unique())
-
-        filtered_b = sheet_b_raw[sheet_b_raw['COLAB'].isin(valid_colabs)].copy()
-        if 'All' not in selected_websites    and selected_websites:
-            filtered_b = filtered_b[filtered_b['WEBSITE'].isin(selected_websites)]
-        if 'All' not in selected_month_years and selected_month_years:
-            filtered_b = filtered_b[filtered_b['MONTH_YEAR'].isin(selected_month_years)]
-
-        filtered_df = merged_df[merged_df['COLAB'].isin(valid_colabs)].copy()
-        if 'All' not in selected_websites and selected_websites:
-            filtered_df = filtered_df[filtered_df['WEBSITE'].isin(selected_websites)]
+        # ── Main area ──────────────────────────────────────────────────────────
+        # Apply same filters to the stock dataframe used in KPIs and tables
+        filtered_sheet_a = sheet_a_unique[sheet_a_unique['COLAB'].isin(valid_colabs)]
 
         if len(filtered_sheet_a) == 0:
-            st.warning("No data available for the selected filters.")
+            st.warning("No COLABs match the selected Sheet A filters.")
         else:
             # ── KPIs ────────────────────────────────────────────────────────────
             st.markdown('<div class="section-heading">&#9670; Key Performance Indicators</div>',
                         unsafe_allow_html=True)
 
-            f_init   = filtered_sheet_a['INITIAL_QTY'].sum()
-            f_sold   = filtered_sheet_a['TOTAL_QTY'].sum()
-            f_bal    = filtered_sheet_a['BALANCE'].sum()
-            f_damage = filtered_sheet_a['DAMAGE_PRODUCTS'].sum()
-            f_spct   = (f_sold / f_init * 100) if f_init > 0 else 0
+            f_init    = filtered_sheet_a['INITIAL_QTY'].sum()
+            f_bal     = filtered_sheet_a['BALANCE'].sum()
+            f_damage  = filtered_sheet_a['DAMAGE_PRODUCTS'].sum()
+            # Stock-side total sold (used for Sales % only)
+            f_stock_sold = filtered_sheet_a['TOTAL_QTY'].sum()
+
+            # Order-side Total Qty Sold (rule #3)
+            total_qty_sold = int(filtered_b['QTY'].sum())
+
+            # Sales % based on stock-side numbers
+            f_spct = (f_stock_sold / f_init * 100) if f_init > 0 else 0
 
             col1, col2, col3, col4, col5, col6 = st.columns(6)
             kpis = [
                 (col1, "📦", "Initial Qty",            f"{f_init:,.0f}"),
-                (col2, "💰", "Total Qty Sold",         f"{f_sold:,.0f}"),
+                (col2, "💰", "Total Qty Sold",         f"{total_qty_sold:,.0f}"),  # ← order-based
                 (col3, "⚖️",  "Balance Qty",           f"{f_bal:,.0f}"),
                 (col4, "🛠️", "Damage Qty",             f"{f_damage:,.0f}"),
                 (col5, "🔄", "Return % Jan– Apr 2026",  f"{return_pct:.1f}%"),
@@ -818,7 +782,7 @@ if uploaded_file is not None:
 
                 grouped = filtered_sheet_a.groupby(group_col, observed=True).agg(
                     INITIAL_QTY=('INITIAL_QTY',         'sum'),
-                    TOTAL_QTY=('TOTAL_QTY',             'sum'),
+                    TOTAL_QTY=('TOTAL_QTY',             'sum'),   # stock-side
                     BALANCE=('BALANCE',                 'sum'),
                     DAMAGE_PRODUCTS=('DAMAGE_PRODUCTS', 'sum'),
                 ).reset_index()
@@ -930,7 +894,7 @@ if uploaded_file is not None:
                 )
                 st.plotly_chart(fig_ws, use_container_width=True)
             else:
-                st.info("No marketplace data available")
+                st.info("No marketplace order data for the selected filters")
             st.markdown("</div>", unsafe_allow_html=True)
 
             # ── CHART 4: Month-Year (only existing months, no zero bars) ───────
@@ -952,7 +916,7 @@ if uploaded_file is not None:
                     monthly_b.groupby(['MONTH_NUM', 'YEAR_NUM', 'MONTH_LABEL'])['QTY']
                     .sum()
                     .reset_index()
-                    .sort_values(['MONTH_NUM', 'YEAR_NUM'])   # Jan across years, then Feb, ...
+                    .sort_values(['MONTH_NUM', 'YEAR_NUM'])
                 )
                 ordered_labels = monthly_agg['MONTH_LABEL'].tolist()
 
@@ -985,7 +949,7 @@ if uploaded_file is not None:
                 )
                 st.plotly_chart(fig_mo, use_container_width=True)
             else:
-                st.info("No order date data available")
+                st.info("No marketplace order data for the selected filters")
             st.markdown("</div>", unsafe_allow_html=True)
 
             # ── Raw data expander ──────────────────────────────────────────────
